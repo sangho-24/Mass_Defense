@@ -1,6 +1,5 @@
 #include "Actor/BaseMonster.h"
 #include "Components/CapsuleComponent.h"
-#include "Components/StaticMeshComponent.h"
 #include "Components/SplineComponent.h"
 #include "Actor/SplinePathActor.h"
 
@@ -71,7 +70,8 @@ void ABaseMonster::SetPathOffset(float InPathOffset)
 
 float ABaseMonster::ApplyDamage(float InDamageAmount, AActor* InAttacker)
 {
-	if (bIsDead || InDamageAmount <= 0.0f)  return 0.0f;
+	if (bIsDead || InDamageAmount <= 0.0f)  
+		return 0.0f;
 	float AppliedDamage = InDamageAmount;
 	CurrentHealth -= AppliedDamage;
 	if (CurrentHealth <= 0.0f && !bIsDead)
