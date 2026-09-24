@@ -3,6 +3,7 @@
 
 #include "Actor/BaseTowerShit.h"
 #include "Components/CapsuleComponent.h"
+#include "Actor/BaseProjectile.h"
 #include "Interface/DamageableInterface.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -11,8 +12,8 @@ ABaseTowerShit::ABaseTowerShit()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	
-	CapsuleComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CapsuleComponent"));
-	RootComponent = CapsuleComponent;
+	CollisionComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CollisionComponent"));
+	RootComponent = CollisionComponent;
 	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
 	StaticMeshComponent->SetupAttachment(RootComponent);
 
@@ -31,14 +32,18 @@ void ABaseTowerShit::BeginPlay()
 
 void ABaseTowerShit::AttackTimer()
 {
-	AActor* BestTarget = FindNearestTarget();
-	if (BestTarget)
+	if (!IsTargetValid())
 	{
-		FireAtTarget(BestTarget);
+	UE_LOG(LogTemp, Log, TEXT("타겟이 유효하지 않음. 새로운 타겟 탐색"));
+		CurrentTarget = FindNearestTarget();
+	}
+	if (CurrentTarget.IsValid())
+	{
+		FireAtTarget(CurrentTarget.Get());
 	}
 }
 
-AActor* ABaseTowerShit::FindNearestTarget()
+AActor* ABaseTowerShit::FindNearestTarget() const
 {
 	// 1. 월드의 모든 몬스터를 무식하게 긁어모음 (힙 할당 + 전수 순회)
 	TArray<AActor*> FoundActors;
@@ -76,14 +81,42 @@ AActor* ABaseTowerShit::FindNearestTarget()
 
 void ABaseTowerShit::FireAtTarget(AActor* TargetActor)
 {
-	if (!TargetActor)
+	if (!TargetActor || !ProjectileClass)
 	{
 		return;
 	}
+	const FVector FireLocation = GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+	const FRotator FireRotation = (TargetActor->GetActorLocation() - FireLocation).Rotation();
+	
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = GetInstigator();
+	
+	ABaseProjectile* Projectile = GetWorld()->SpawnActor<ABaseProjectile>(ProjectileClass, FireLocation, FireRotation, SpawnParams);
+	if (Projectile)
+	{
+		Projectile->SetDamage(AttackDamage);
+		if (bIsHoming)
+			Projectile->SetHomingTarget(TargetActor);
+	}
+}
+
+bool ABaseTowerShit::IsTargetValid() const
+{
+	if (!CurrentTarget.IsValid())
+	{
+		return false;
+	}
+	AActor* TargetActor = CurrentTarget.Get();
 	if (IDamageableInterface* Damageable = Cast<IDamageableInterface>(TargetActor))
 	{
-		Damageable->ApplyDamage(AttackDamage, this);
+		if (Damageable->IsDead())
+		{
+			return false;
+		}
 	}
+	const float Distance = FVector::Dist(GetActorLocation(), TargetActor->GetActorLocation());
+	return Distance <= AttackRange;
 }
 
 // Called every frame

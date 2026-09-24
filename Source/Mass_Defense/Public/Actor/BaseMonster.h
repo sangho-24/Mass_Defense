@@ -7,6 +7,7 @@
 
 class UCapsuleComponent;
 class UStaticMeshComponent;
+class USkeletalMeshComponent;
 class ASplinePathActor;
 class USplineComponent;
 
@@ -18,14 +19,20 @@ class MASS_DEFENSE_API ABaseMonster : public AActor
 	
 // 베이스 몬스터라 상속필수
 protected:
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<UCapsuleComponent> CapsuleComponent;
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UCapsuleComponent> CollisionComponent;
 	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	TObjectPtr<UStaticMeshComponent> StaticMeshComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path|SetUp")
 	TObjectPtr<ASplinePathActor> SplinePathActor;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Components")
+	bool bUseVAT = false;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|SetUp")
 	float MaxHealth = 100.0f;

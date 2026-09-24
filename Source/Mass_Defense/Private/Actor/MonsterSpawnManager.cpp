@@ -61,6 +61,15 @@ void AMonsterSpawnManager::SpawnMonster()
 		UGameplayStatics::FinishSpawningActor(NewMonster, CachedSpawnTransform);
 
 		CurrentSpawnedCount+=1;
+		if (GEngine)
+		{
+			GEngine->AddOnScreenDebugMessage(
+				1,
+				5.0f,
+				FColor::Yellow,
+				FString::Printf(TEXT("현재 스폰: %d"), CurrentSpawnedCount)
+			);
+		}
 	}
 }
 
