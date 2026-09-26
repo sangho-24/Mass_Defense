@@ -1,13 +1,14 @@
-#include "Actor/BaseMonster.h"
+#include "Actor/BaseMonsterShit.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SplineComponent.h"
 #include "Actor/SplinePathActor.h"
 
-ABaseMonster::ABaseMonster()
+ABaseMonsterShit::ABaseMonsterShit()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	
 	CollisionComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CollisionComponent"));
+	CollisionComponent->SetCollisionProfileName(TEXT("DamageableMonster"));
 	RootComponent = CollisionComponent;
 	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
 	StaticMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -15,10 +16,9 @@ ABaseMonster::ABaseMonster()
 	SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkeletalMeshComponent"));
 	SkeletalMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SkeletalMeshComponent->SetupAttachment(RootComponent);
-	
 }
 
-void ABaseMonster::BeginPlay()
+void ABaseMonsterShit::BeginPlay()
 {
 	Super::BeginPlay();
 	
@@ -75,7 +75,7 @@ void ABaseMonster::BeginPlay()
 	}
 }
 
-void ABaseMonster::TickMoveAlongSpline(float DeltaTime)
+void ABaseMonsterShit::TickMoveAlongSpline(float DeltaTime)
 {
 	CurrentSplineDistance += MoveSpeed * DeltaTime;
 	if (CurrentSplineDistance > CachedSplineLength)
@@ -91,23 +91,23 @@ void ABaseMonster::TickMoveAlongSpline(float DeltaTime)
 	SetActorLocationAndRotation(Location, NewTransform.GetRotation(),true);
 }
 
-void ABaseMonster::Tick(float DeltaTime)
+void ABaseMonsterShit::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	TickMoveAlongSpline(DeltaTime);
 }
 
-void ABaseMonster::SetSplinePathActor(ASplinePathActor* InSplinePathActor)
+void ABaseMonsterShit::SetSplinePathActor(ASplinePathActor* InSplinePathActor)
 {
 	SplinePathActor = InSplinePathActor; 
 }
 
-void ABaseMonster::SetPathOffset(float InPathOffset)
+void ABaseMonsterShit::SetPathOffset(float InPathOffset)
 {
 	PathOffset = InPathOffset;
 }
 
-float ABaseMonster::ApplyDamage(float InDamageAmount, AActor* InAttacker)
+float ABaseMonsterShit::ApplyDamage(float InDamageAmount, AActor* InAttacker)
 {
 	if (bIsDead || InDamageAmount <= 0.f)  
 		return 0.f;
@@ -122,7 +122,7 @@ float ABaseMonster::ApplyDamage(float InDamageAmount, AActor* InAttacker)
 	return AppliedDamage;
 }
 
-void ABaseMonster::Death(AActor* InKiller)
+void ABaseMonsterShit::Death(AActor* InKiller)
 {
 	bIsDead = true;
 	SetActorTickEnabled(false);
@@ -134,6 +134,12 @@ void ABaseMonster::Death(AActor* InKiller)
 		StaticMeshComponent->SetCustomPrimitiveDataFloat(2,31.f);
 		StaticMeshComponent->SetCustomPrimitiveDataFloat(3,56.f);
 	}
+	else
+    {
+		if (DeathAnimAsset)
+			SkeletalMeshComponent->PlayAnimation(DeathAnimAsset, false);
+    }
+	// TODO: 오브젝트 풀링 고려해보기
 	SetLifeSpan(3.0f);
-	// TODO: 몬스터 사망 시 처리 로직 추가 (예: 애니메이션 재생, 점수 증가)
+	// TODO: 몬스터 사망 시 처리 로직 추가 (점수 증가, 충돌 제거)
 }

@@ -2,20 +2,20 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "MonsterSpawnManager.generated.h"
+#include "MonsterSpawnManagerShit.generated.h"
 
-class ABaseMonster;
+class ABaseMonsterShit;
 class USplineComponent;
 class ASplinePathActor;
 
 UCLASS()
-class MASS_DEFENSE_API AMonsterSpawnManager : public AActor
+class MASS_DEFENSE_API AMonsterSpawnManagerShit : public AActor
 {
 	GENERATED_BODY()
 	
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<ABaseMonster> MonsterClass;
+	TSubclassOf<ABaseMonsterShit> MonsterClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ASplinePathActor> SplinePathActor;
@@ -34,7 +34,7 @@ private:
 	FTransform CachedSpawnTransform;
 	
 public:	
-	AMonsterSpawnManager();
+	AMonsterSpawnManagerShit();
 
 protected:
 	virtual void BeginPlay() override;

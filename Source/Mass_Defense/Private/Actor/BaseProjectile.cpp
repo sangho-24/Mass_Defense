@@ -10,7 +10,7 @@ ABaseProjectile::ABaseProjectile()
 
 	CollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionComponent"));
 	CollisionComponent->InitSphereRadius(10.0f);
-	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	CollisionComponent->SetCollisionProfileName(TEXT("Projectile"));
 	CollisionComponent->SetGenerateOverlapEvents(true);
 	RootComponent = CollisionComponent;
 	

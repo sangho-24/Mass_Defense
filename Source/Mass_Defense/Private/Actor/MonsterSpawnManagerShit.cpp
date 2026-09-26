@@ -1,20 +1,20 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 
-#include "Actor/MonsterSpawnManager.h"
-#include "Actor/BaseMonster.h"
+#include "Actor/MonsterSpawnManagerShit.h"
+#include "Actor/BaseMonsterShit.h"
 #include "Actor/SplinePathActor.h"
 #include "Components/SplineComponent.h"
 #include "Kismet/GameplayStatics.h"
 
 // Sets default values
-AMonsterSpawnManager::AMonsterSpawnManager()
+AMonsterSpawnManagerShit::AMonsterSpawnManagerShit()
 {
 	PrimaryActorTick.bCanEverTick = false;
 }
 
 // Called when the game starts or when spawned
-void AMonsterSpawnManager::BeginPlay()
+void AMonsterSpawnManagerShit::BeginPlay()
 {
 	Super::BeginPlay();
 	
@@ -32,11 +32,11 @@ void AMonsterSpawnManager::BeginPlay()
 	
 	GetWorld()->GetTimerManager().SetTimer(
 		SpawnTimerHandle,this, 
-		&AMonsterSpawnManager::SpawnMonster,
+		&AMonsterSpawnManagerShit::SpawnMonster,
 		SpawnInterval,true);
 }
 
-void AMonsterSpawnManager::SpawnMonster()
+void AMonsterSpawnManagerShit::SpawnMonster()
 {
 	// 모두 스폰했다면 타이머를 정리하고 종료
 	if (CurrentSpawnedCount >= TotalSpawnCount)
@@ -48,7 +48,7 @@ void AMonsterSpawnManager::SpawnMonster()
 	
 	// 지연 생성(메모리 할당 및 기본 생성자만 불린 상태로 대기) 시작
 	// 몬스터의 BeginPlay 아직 실행 안됨
-	ABaseMonster* NewMonster = GetWorld()->SpawnActorDeferred<ABaseMonster>(
+	ABaseMonsterShit* NewMonster = GetWorld()->SpawnActorDeferred<ABaseMonsterShit>(
 		MonsterClass, CachedSpawnTransform, this, nullptr,
 		ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	

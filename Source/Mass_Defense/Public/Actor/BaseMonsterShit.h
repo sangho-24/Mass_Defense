@@ -3,16 +3,17 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "Interface/DamageableInterface.h"
-#include "BaseMonster.generated.h"
+#include "BaseMonsterShit.generated.h"
 
 class UCapsuleComponent;
 class UStaticMeshComponent;
 class USkeletalMeshComponent;
 class ASplinePathActor;
 class USplineComponent;
+class UAnimSequence;
 
 UCLASS()
-class MASS_DEFENSE_API ABaseMonster : public AActor
+class MASS_DEFENSE_API ABaseMonsterShit : public AActor
 	, public IDamageableInterface
 {
 	GENERATED_BODY()
@@ -43,6 +44,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Path|SetUp")
 	float MoveSpeed = 400.0f;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Animation|SetUp")
+	TObjectPtr<UAnimSequence> DeathAnimAsset;
+	
 	bool bIsDead = false;
 	float PathOffset = 0.0f;
 	float CurrentSplineDistance = 0.0f;
@@ -51,7 +55,7 @@ protected:
 	
 
 public:	
-	ABaseMonster();
+	ABaseMonsterShit();
 
 protected:
 	virtual void BeginPlay() override;
