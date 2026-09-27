@@ -1,19 +1,14 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-
 #include "Actor/MonsterSpawnManagerShit.h"
-#include "Actor/BaseMonsterShit.h"
+#include "Actor/BaseMonster.h"
 #include "Actor/SplinePathActor.h"
 #include "Components/SplineComponent.h"
 #include "Kismet/GameplayStatics.h"
 
-// Sets default values
 AMonsterSpawnManagerShit::AMonsterSpawnManagerShit()
 {
 	PrimaryActorTick.bCanEverTick = false;
 }
 
-// Called when the game starts or when spawned
 void AMonsterSpawnManagerShit::BeginPlay()
 {
 	Super::BeginPlay();
@@ -48,7 +43,7 @@ void AMonsterSpawnManagerShit::SpawnMonster()
 	
 	// 지연 생성(메모리 할당 및 기본 생성자만 불린 상태로 대기) 시작
 	// 몬스터의 BeginPlay 아직 실행 안됨
-	ABaseMonsterShit* NewMonster = GetWorld()->SpawnActorDeferred<ABaseMonsterShit>(
+	ABaseMonster* NewMonster = GetWorld()->SpawnActorDeferred<ABaseMonster>(
 		MonsterClass, CachedSpawnTransform, this, nullptr,
 		ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
 	

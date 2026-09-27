@@ -1,0 +1,108 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+#include "MonsterSpawnManagerBatch.generated.h"
+
+class ABaseMonster;
+class USplineComponent;
+class ASplinePathActor;
+class UInstancedStaticMeshComponent;
+
+USTRUCT(BlueprintType)
+struct FMonsterInstanceData
+{
+	GENERATED_BODY()
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	int32 InstanceIndex = INDEX_NONE;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CurrentDistanceAlongSpline = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float PathOffset = 0.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float MoveSpeed = 400.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float MaxHealth = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float CurrentHealth = 100.0f;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	bool bIsDead = false;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float DeathTime = 0.0f;
+};
+
+UCLASS()
+class MASS_DEFENSE_API AMonsterSpawnManagerBatch : public AActor
+{
+	GENERATED_BODY()
+	
+private:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "ISM", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<UInstancedStaticMeshComponent> ISMComponent;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	TSubclassOf<ABaseMonster> MonsterClass;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	TObjectPtr<ASplinePathActor> SplinePathActor;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	float SpawnInterval = 0.05f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	int32 TotalSpawnCount = 500;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	float RandomOffset = 150.f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	float MonsterYawRotationOffset = -90.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	FVector MonsterScaleOffset = FVector(1.0f);
+	
+	// CDO에서 캐싱할 몬스터 스펙
+	float CachedDefaultMoveSpeed = 400.0f;
+	float CachedDefaultMaxHealth = 100.0f;
+	float CachedWalkAnimStartFrame = 0.0f;
+	float CachedWalkAnimEndFrames = 30.0f;
+	float CachedDeathAnimStartFrame = 31.0f;
+	float CachedDeathAnimEndFrames = 56.0f;
+	
+	TArray<FMonsterInstanceData> ActiveMonsterData;
+
+	int32 CurrentSpawnedCount = 0;
+	FTimerHandle SpawnTimerHandle;
+	FTransform CachedSpawnTransform;
+	
+	TWeakObjectPtr<USplineComponent> CachedSplineComponent;
+	float CachedSplineLength = 0.0f;
+	
+public:	
+	AMonsterSpawnManagerBatch();
+	virtual void Tick(float DeltaTime) override;
+	
+protected:
+	virtual void BeginPlay() override;
+	
+private:
+	void InitializeFromCDO();
+	void SpawnMonsterISM();
+	void UpdateBatchSplineMovement(float DeltaTime);
+	void HandleInstanceDeath(int32 DataIndex);
+	
+public:
+	// 포탑 타겟팅
+	bool FindTargetMonster(const FVector& SearchOrigin, float SearchRadius, FVector& OutTargetLocation, int32& OutTargetIndex);
+
+	// 피격 처리
+	float ApplyDamageToInstance(int32 TargetIndex, float InDamageAmount, AActor* InAttacker);
+};

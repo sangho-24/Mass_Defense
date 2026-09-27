@@ -1,24 +1,26 @@
-#include "Actor/BaseMonsterShit.h"
+#include "Actor/BaseMonster.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SplineComponent.h"
 #include "Actor/SplinePathActor.h"
 
-ABaseMonsterShit::ABaseMonsterShit()
+ABaseMonster::ABaseMonster()
 {
 	PrimaryActorTick.bCanEverTick = true;
 	
 	CollisionComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("CollisionComponent"));
 	CollisionComponent->SetCollisionProfileName(TEXT("DamageableMonster"));
 	RootComponent = CollisionComponent;
+	
 	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
 	StaticMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	StaticMeshComponent->SetupAttachment(RootComponent);
+	
 	SkeletalMeshComponent = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SkeletalMeshComponent"));
 	SkeletalMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	SkeletalMeshComponent->SetupAttachment(RootComponent);
 }
 
-void ABaseMonsterShit::BeginPlay()
+void ABaseMonster::BeginPlay()
 {
 	Super::BeginPlay();
 	
@@ -35,6 +37,10 @@ void ABaseMonsterShit::BeginPlay()
 			StaticMeshComponent->SetVisibility(true);
 			StaticMeshComponent->SetComponentTickEnabled(true);
 		}
+		StaticMeshComponent->SetCustomPrimitiveDataFloat(0, 1.f);
+		StaticMeshComponent->SetCustomPrimitiveDataFloat(1, FMath::FRandRange(0.f, 1.f));
+		StaticMeshComponent->SetCustomPrimitiveDataFloat(2, 0.f);
+		StaticMeshComponent->SetCustomPrimitiveDataFloat(3, 30.f);
 	}
 	else
 	{
@@ -49,14 +55,7 @@ void ABaseMonsterShit::BeginPlay()
 			SkeletalMeshComponent->SetComponentTickEnabled(true);
 		}
 	}
-	// 임시 랜덤상수. ISM로 전환하면 제거
-	StaticMeshComponent->SetCustomPrimitiveDataFloat(0, 1.f);
-	StaticMeshComponent->SetCustomPrimitiveDataFloat(1, FMath::FRandRange(0.f, 1.f));
-	StaticMeshComponent->SetCustomPrimitiveDataFloat(2, 0.f);
-	StaticMeshComponent->SetCustomPrimitiveDataFloat(3, 30.f);
-
-
-
+	
 	CurrentHealth = MaxHealth;
 	// 스플라인 액터로부터 컴포넌트를 다이렉트로 가져와 캐싱.
 	if (SplinePathActor)
@@ -67,15 +66,15 @@ void ABaseMonsterShit::BeginPlay()
 			CachedSplineLength = CachedSplineComponent->GetSplineLength();
 		}
 	}
-
-	// 경로 정보가 유효하지 않다면 매 프레임 틱을 돌며 낭비할 이유가 없으므로 틱을 차단.
+	// 경로 정보가 유효하지 않다면 틱 비활성화
 	if (CachedSplineComponent == nullptr || CachedSplineLength <= 0.0f)
 	{
 		SetActorTickEnabled(false);
+		return;
 	}
 }
 
-void ABaseMonsterShit::TickMoveAlongSpline(float DeltaTime)
+void ABaseMonster::TickMoveAlongSpline(float DeltaTime)
 {
 	CurrentSplineDistance += MoveSpeed * DeltaTime;
 	if (CurrentSplineDistance > CachedSplineLength)
@@ -91,23 +90,25 @@ void ABaseMonsterShit::TickMoveAlongSpline(float DeltaTime)
 	SetActorLocationAndRotation(Location, NewTransform.GetRotation(),true);
 }
 
-void ABaseMonsterShit::Tick(float DeltaTime)
+void ABaseMonster::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	TickMoveAlongSpline(DeltaTime);
 }
 
-void ABaseMonsterShit::SetSplinePathActor(ASplinePathActor* InSplinePathActor)
+void ABaseMonster::SetSplinePathActor(ASplinePathActor* InSplinePathActor)
 {
 	SplinePathActor = InSplinePathActor; 
 }
 
-void ABaseMonsterShit::SetPathOffset(float InPathOffset)
+void ABaseMonster::SetPathOffset(float InPathOffset)
 {
 	PathOffset = InPathOffset;
 }
 
-float ABaseMonsterShit::ApplyDamage(float InDamageAmount, AActor* InAttacker)
+
+
+float ABaseMonster::ApplyDamage(float InDamageAmount, AActor* InAttacker)
 {
 	if (bIsDead || InDamageAmount <= 0.f)  
 		return 0.f;
@@ -122,21 +123,29 @@ float ABaseMonsterShit::ApplyDamage(float InDamageAmount, AActor* InAttacker)
 	return AppliedDamage;
 }
 
-void ABaseMonsterShit::Death(AActor* InKiller)
+void ABaseMonster::Death(AActor* InKiller)
 {
 	bIsDead = true;
 	SetActorTickEnabled(false);
+	if (CollisionComponent)
+	{
+		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		CollisionComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
+	}
+	
 	if (bUseVAT)
 	{
-		StaticMeshComponent->SetCustomPrimitiveDataFloat(0,0.f);
-		StaticMeshComponent->SetCustomPrimitiveDataFloat(1, -GetWorld()->GetTimeSeconds());
-		UE_LOG(LogTemp, Log, TEXT("타임: %f"), GetWorld()->GetTimeSeconds());
-		StaticMeshComponent->SetCustomPrimitiveDataFloat(2,31.f);
-		StaticMeshComponent->SetCustomPrimitiveDataFloat(3,56.f);
+		if (StaticMeshComponent)
+		{
+			StaticMeshComponent->SetCustomPrimitiveDataFloat(0,0.f);
+			StaticMeshComponent->SetCustomPrimitiveDataFloat(1, -GetWorld()->GetTimeSeconds());
+			StaticMeshComponent->SetCustomPrimitiveDataFloat(2,31.f);
+			StaticMeshComponent->SetCustomPrimitiveDataFloat(3,56.f);
+		}
 	}
 	else
     {
-		if (DeathAnimAsset)
+		if (DeathAnimAsset && SkeletalMeshComponent)
 			SkeletalMeshComponent->PlayAnimation(DeathAnimAsset, false);
     }
 	// TODO: 오브젝트 풀링 고려해보기

@@ -4,7 +4,7 @@
 #include "GameFramework/Actor.h"
 #include "MonsterSpawnManagerShit.generated.h"
 
-class ABaseMonsterShit;
+class ABaseMonster;
 class USplineComponent;
 class ASplinePathActor;
 
@@ -15,7 +15,7 @@ class MASS_DEFENSE_API AMonsterSpawnManagerShit : public AActor
 	
 private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
-	TSubclassOf<ABaseMonsterShit> MonsterClass;
+	TSubclassOf<ABaseMonster> MonsterClass;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<ASplinePathActor> SplinePathActor;
@@ -29,6 +29,7 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
 	float RandomOffset = 150;
 	
+
 	int32 CurrentSpawnedCount = 0;
 	FTimerHandle SpawnTimerHandle;
 	FTransform CachedSpawnTransform;
