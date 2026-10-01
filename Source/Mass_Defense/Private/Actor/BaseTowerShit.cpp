@@ -6,6 +6,7 @@
 #include "Actor/BaseProjectile.h"
 #include "Interface/DamageableInterface.h"
 #include "Kismet/GameplayStatics.h"
+#include "Actor/MonsterSpawnManagerBatch.h"
 
 // Sets default values
 ABaseTowerShit::ABaseTowerShit()
@@ -24,6 +25,13 @@ void ABaseTowerShit::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	// ISM 모드인데 매니저를 안 집어넣어 줬다면 월드에서 자동 탐색
+	if (bUseISM && !TargetSpawnManager)
+	{
+		TargetSpawnManager = Cast<AMonsterSpawnManagerBatch>(
+			UGameplayStatics::GetActorOfClass(GetWorld(), AMonsterSpawnManagerBatch::StaticClass()));
+	}
+	
 	GetWorld()->GetTimerManager().SetTimer(
 	AttackTimerHandle,this, 
 	&ABaseTowerShit::AttackTimer,
@@ -32,14 +40,39 @@ void ABaseTowerShit::BeginPlay()
 
 void ABaseTowerShit::AttackTimer()
 {
-	if (!IsTargetValid())
+	// ISM 몬스터 탐색
+	if (bUseISM)
 	{
-	UE_LOG(LogTemp, Log, TEXT("타겟이 유효하지 않음. 새로운 타겟 탐색"));
-		CurrentTarget = FindNearestTarget();
+		if (!IsISMTargetValid())
+		{
+			FVector FoundLocation;
+			int32 FoundIndex = INDEX_NONE;
+			if (FindNearestISMTarget(FoundLocation, FoundIndex))
+			{
+				CurrentTargetISMIndex = FoundIndex;
+				CurrentTargetISMLocation = FoundLocation;
+			}
+			else
+			{
+				CurrentTargetISMIndex = INDEX_NONE;
+			}
+		}
+		if (CurrentTargetISMIndex != INDEX_NONE)
+		{
+			FireAtISMTarget(CurrentTargetISMLocation, CurrentTargetISMIndex);
+		}
 	}
-	if (CurrentTarget.IsValid())
+	// 기존 액터 탐색
+	else
 	{
-		FireAtTarget(CurrentTarget.Get());
+		if (!IsTargetValid())
+		{
+			CurrentTarget = FindNearestTarget();
+		}
+		if (CurrentTarget.IsValid())
+		{
+			FireAtTarget(CurrentTarget.Get());
+		}
 	}
 }
 
@@ -79,6 +112,17 @@ AActor* ABaseTowerShit::FindNearestTarget() const
 	return NearestTarget;
 }
 
+bool ABaseTowerShit::FindNearestISMTarget(FVector& OutLocation, int32& OutIndex) const
+{
+	if (!TargetSpawnManager)
+	{
+		return false;
+	}
+	return TargetSpawnManager->FindTargetMonster(GetActorLocation(), AttackRange, OutLocation, OutIndex);
+}
+
+
+
 void ABaseTowerShit::FireAtTarget(AActor* TargetActor)
 {
 	if (!TargetActor || !ProjectileClass)
@@ -101,6 +145,31 @@ void ABaseTowerShit::FireAtTarget(AActor* TargetActor)
 	}
 }
 
+void ABaseTowerShit::FireAtISMTarget(const FVector& TargetLocation, int32 TargetIndex)
+{
+	if (!ProjectileClass || !TargetSpawnManager)
+	{
+		return;
+	}
+
+	const FVector FireLocation = GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+	const FRotator FireRotation = (TargetLocation - FireLocation).Rotation();
+
+	FActorSpawnParameters SpawnParams;
+	SpawnParams.Owner = this;
+	SpawnParams.Instigator = GetInstigator();
+
+	// [의도된 병목의 핵심!]
+	// 대상이 ISM이라도 '물리 투사체 액터’를 월드에 직접 스폰하여
+	// 액터 생성 오버헤드, UObject 힙 할당, 컴포넌트 틱 부하를 화면에 그대로 누적시킴!
+	ABaseProjectile* Projectile = GetWorld()->SpawnActor<ABaseProjectile>(ProjectileClass, FireLocation, FireRotation, SpawnParams);
+	if (Projectile)
+	{
+		Projectile->SetDamage(AttackDamage);
+		Projectile->SetISMTarget(TargetSpawnManager, TargetIndex);
+	}
+}
+
 bool ABaseTowerShit::IsTargetValid() const
 {
 	if (!CurrentTarget.IsValid())
@@ -116,6 +185,23 @@ bool ABaseTowerShit::IsTargetValid() const
 		}
 	}
 	const float Distance = FVector::Dist(GetActorLocation(), TargetActor->GetActorLocation());
+	return Distance <= AttackRange;
+}
+
+bool ABaseTowerShit::IsISMTargetValid() const
+{
+	if (!TargetSpawnManager || CurrentTargetISMIndex == INDEX_NONE)
+	{
+		return false;
+	}
+	// 매니저로부터 해당 인덱스의 실시간 위치 확인
+	const FVector TargetLocation = TargetSpawnManager->GetMonsterLocation(CurrentTargetISMIndex);
+	if (TargetLocation.IsZero())
+	{
+		return false;
+	}
+	// 무거운 제곱근 거리 계산 유지
+	const float Distance = FVector::Dist(GetActorLocation(), TargetLocation);
 	return Distance <= AttackRange;
 }
 

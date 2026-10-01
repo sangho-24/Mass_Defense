@@ -33,6 +33,9 @@ void AMonsterSpawnManagerBatch::BeginPlay()
 		return;
 	}
 
+	ISMComponent->SetRemoveSwap();
+	UE_LOG(LogTemp,Warning,TEXT("ISM SupportsRemoveSwap = %s"),ISMComponent->SupportsRemoveSwap() ? TEXT("TRUE") : TEXT("FALSE"));
+	
 	CachedSplineComponent = SplinePathActor->GetSplineComponent();
 	CachedSplineLength = CachedSplineComponent->GetSplineLength();
 	CachedSpawnTransform = CachedSplineComponent->GetTransformAtDistanceAlongSpline(0.0f, ESplineCoordinateSpace::World);
@@ -41,7 +44,8 @@ void AMonsterSpawnManagerBatch::BeginPlay()
 
 	// CDO로부터 스태틱 메시 및 초기 스텟 추출
 	InitializeFromCDO();
-
+	// LUT 계산
+	InitializeSplineLUT();
 	// 스폰 주기 타이머 가동
 	GetWorld()->GetTimerManager().SetTimer(
 	SpawnTimerHandle,
@@ -90,6 +94,61 @@ void AMonsterSpawnManagerBatch::InitializeFromCDO()
 	CachedDeathAnimEndFrames = DefaultMonster->GetDeathAnimEndFrames();
 }
 
+void AMonsterSpawnManagerBatch::InitializeSplineLUT()
+{
+	if (!CachedSplineComponent.IsValid() || CachedSplineLength <= 0.0f || LUTSampleDist <= 0.0f)
+	{
+		return;
+	}
+	// SampleDist단위로 나눈 샘플 개수. 0도 포함되니 +1 해줘야 함.
+	const int32 SampleCount = FMath::CeilToInt(CachedSplineLength / LUTSampleDist) + 1;
+	// 실제 원소는 0개, SampleCount만큼의 공간만 확보.
+	SplineLUT.Empty(SampleCount);
+
+	const FQuat YawRotation = FRotator(0.0f, MonsterYawRotationOffset, 0.0f).Quaternion();
+
+	for (int32 i = 0; i < SampleCount; ++i)
+	{
+		const float CurrentDistance = FMath::Min(static_cast<float>(i) * LUTSampleDist, CachedSplineLength);
+		FTransform SplineTransform = CachedSplineComponent->GetTransformAtDistanceAlongSpline(CurrentDistance, ESplineCoordinateSpace::World);
+
+		FSplineLUTSample LUTSample;
+		// 오프셋을 위한 라이트 백터와 스태틱 메시 회전까지 적용
+		LUTSample.RightVector = SplineTransform.GetRotation().GetRightVector();
+		SplineTransform.SetRotation(SplineTransform.GetRotation() * YawRotation);
+		LUTSample.Transform = SplineTransform;
+		
+		SplineLUT.Add(LUTSample);
+	}
+}
+
+void AMonsterSpawnManagerBatch::GetLUTTransform(float InDistance, float InOffset, FTransform& OutTransform) const
+{
+	if (SplineLUT.Num() == 0)
+	{
+		return;
+	}
+	// 배열 범위 초과 방지
+	const float ClampedDistance = FMath::Clamp(InDistance, 0.0f, CachedSplineLength);
+	const float NormalizedDistance = ClampedDistance / LUTSampleDist;
+
+	const int32 IndexA = FMath::FloorToInt(NormalizedDistance);
+	// 딱 맞아떨어질 때, Index+1하면 배열범위초과. 그걸 방지하기 위한 Min.
+	const int32 IndexB = FMath::Min(IndexA + 1, SplineLUT.Num() - 1);
+	const float Alpha = NormalizedDistance - static_cast<float>(IndexA);
+
+	const FSplineLUTSample& SampleA = SplineLUT[IndexA];
+	const FSplineLUTSample& SampleB = SplineLUT[IndexB];
+
+	// 트랜스폼 선형 보간 (트렌스폼 구조체안 회전은 Lerp 안됨)
+	OutTransform = SampleA.Transform;
+	OutTransform.BlendWith(SampleB.Transform, Alpha);
+
+	// 횡방향 오프셋 벡터 보간 적용
+	const FVector BlendedRight = FMath::Lerp(SampleA.RightVector, SampleB.RightVector, Alpha).GetSafeNormal();
+	OutTransform.AddToTranslation(BlendedRight * InOffset);
+}
+
 void AMonsterSpawnManagerBatch::SpawnMonsterISM()
 {
 	if (CurrentSpawnedCount >= TotalSpawnCount)
@@ -99,16 +158,22 @@ void AMonsterSpawnManagerBatch::SpawnMonsterISM()
 		return;
 	}
 
-	if (!ISMComponent || !CachedSplineComponent.IsValid())
+	if (!ISMComponent || !CachedSplineComponent.IsValid() || SplineLUT.Num() == 0)
 	{
 		return;
 	}
 
 	const float Offset = FMath::RandRange(-RandomOffset, RandomOffset);
-
-	// 초기 스플라인 위치 계산
-	FTransform InitialTransform = CachedSpawnTransform;
-	InitialTransform.AddToTranslation(CachedSpawnTransform.GetRotation().GetRightVector() * Offset);
+	FTransform InitialTransform;
+	if (bUseLUT)
+	{
+		GetLUTTransform(0.0f, Offset, InitialTransform);
+	}
+	else
+	{
+		InitialTransform = CachedSpawnTransform;
+		InitialTransform.AddToTranslation(CachedSpawnTransform.GetRotation().GetRightVector() * Offset);
+	}
 
 	// ISM 인스턴스 등록
 	const int32 NewInstanceIndex = ISMComponent->AddInstance(InitialTransform, true);
@@ -148,9 +213,9 @@ void AMonsterSpawnManagerBatch::UpdateBatchSplineMovement(float DeltaTime)
 	
 	// 반복문 역순 순회
 	// 중간에 사망한 인스턴스 제거하여 앞으로 당겨지더라도, 순회에서 스킵되거나 배열 범위 초과되는 일 없도록 하기 위함.
-	for (int32 index = ActiveMonsterData.Num() - 1; index >= 0; --index)
+	for (int32 i = ActiveMonsterData.Num() - 1; i >= 0; --i)
 	{
-		FMonsterInstanceData& Data = ActiveMonsterData[index];
+		FMonsterInstanceData& Data = ActiveMonsterData[i];
 
 		if (Data.bIsDead)
 		{
@@ -159,12 +224,12 @@ void AMonsterSpawnManagerBatch::UpdateBatchSplineMovement(float DeltaTime)
 			{
 				const int32 RemovedIndex = Data.InstanceIndex;
 				ISMComponent->RemoveInstance(Data.InstanceIndex);
-				ActiveMonsterData.RemoveAtSwap(index);
+				ActiveMonsterData.RemoveAtSwap(i);
 
 				// Swap 보정, 마지막 인덱스가 제거되었다면 swap이 없으므로 보정할 필요도 없음
-				if (index < ActiveMonsterData.Num())
+				if (i < ActiveMonsterData.Num())
 				{
-					ActiveMonsterData[index].InstanceIndex = RemovedIndex;
+					ActiveMonsterData[i].InstanceIndex = RemovedIndex;
 				}
 				continue;
 			}
@@ -179,18 +244,23 @@ void AMonsterSpawnManagerBatch::UpdateBatchSplineMovement(float DeltaTime)
 			}
 		}
 
-		// 새 트랜스폼 산출
-		FTransform SplineTransform = CachedSplineComponent->GetTransformAtDistanceAlongSpline(
-			Data.CurrentDistanceAlongSpline,ESplineCoordinateSpace::World);
+		FTransform SplineTransform;
+		if (bUseLUT)
+		{
+			GetLUTTransform(Data.CurrentDistanceAlongSpline, Data.PathOffset, SplineTransform);
+		}
+		else
+		{
+		SplineTransform = CachedSplineComponent->GetTransformAtDistanceAlongSpline(Data.CurrentDistanceAlongSpline, ESplineCoordinateSpace::World);
 		const FVector Right = SplineTransform.GetRotation().GetRightVector();
 		SplineTransform.AddToTranslation(Right * Data.PathOffset);
 		SplineTransform.ConcatenateRotation(FRotator(0.0f, MonsterYawRotationOffset, 0.0f).Quaternion());
+		}
+		// 스케일은 LUT에서 적용할 필요 없음. (비용 같음)
 		SplineTransform.SetScale3D(MonsterScaleOffset);
-
 		// 트랜스폼 메모리 갱신 (아직 렌더링 X)
 		ISMComponent->UpdateInstanceTransform(Data.InstanceIndex, SplineTransform, true, false, false);
 	}
-
 	// 일괄 GPU 플러시 (한번에 렌더링)
 	ISMComponent->MarkRenderStateDirty();
 }
@@ -219,9 +289,9 @@ bool AMonsterSpawnManagerBatch::FindTargetMonster(const FVector& SearchOrigin, f
 	int32 FoundDataIndex = INDEX_NONE;
 	FTransform FoundTransform;
 
-	for (int32 index = 0; index < ActiveMonsterData.Num(); ++index)
+	for (int32 i = 0; i < ActiveMonsterData.Num(); ++i)
 	{
-		const FMonsterInstanceData& Data = ActiveMonsterData[index];
+		const FMonsterInstanceData& Data = ActiveMonsterData[i];
 		if (Data.bIsDead)
 		{
 			continue;
@@ -234,7 +304,7 @@ bool AMonsterSpawnManagerBatch::FindTargetMonster(const FVector& SearchOrigin, f
 		if (DistSq <= ClosestDistSq)
 		{
 			ClosestDistSq = DistSq;
-			FoundDataIndex = index;
+			FoundDataIndex = i;
 			FoundTransform = InstanceTransform;
 		}
 	}
@@ -272,4 +342,28 @@ float AMonsterSpawnManagerBatch::ApplyDamageToInstance(int32 TargetIndex, float 
 	}
 
 	return AppliedDamage;
+}
+
+FVector AMonsterSpawnManagerBatch::GetMonsterLocation(int32 MonsterIndex) const
+{
+	if (!ActiveMonsterData.IsValidIndex(MonsterIndex) || ActiveMonsterData[MonsterIndex].bIsDead)
+	{
+		return FVector::ZeroVector;
+	}
+	if (!ISMComponent)
+	{
+		return FVector::ZeroVector;
+	}
+	FTransform OutTransform;
+	// 세 번째 인자 true: 월드 스페이스 좌표로 트랜스폼 획득
+	if (ISMComponent->GetInstanceTransform(ActiveMonsterData[MonsterIndex].InstanceIndex, OutTransform, true))
+	{
+		return OutTransform.GetLocation();
+	}
+	return FVector::ZeroVector;
+}
+
+bool AMonsterSpawnManagerBatch::IsMonsterAlive(int32 MonsterIndex) const
+{
+	return ActiveMonsterData.IsValidIndex(MonsterIndex) && !ActiveMonsterData[MonsterIndex].bIsDead;
 }

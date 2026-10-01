@@ -9,6 +9,7 @@ class USplineComponent;
 class ASplinePathActor;
 class UInstancedStaticMeshComponent;
 
+// 몬스터 데이터 구조체
 USTRUCT(BlueprintType)
 struct FMonsterInstanceData
 {
@@ -37,6 +38,16 @@ struct FMonsterInstanceData
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float DeathTime = 0.0f;
+};
+
+// LUT 구조체
+USTRUCT()
+struct FSplineLUTSample
+{
+	GENERATED_BODY()
+
+	FTransform Transform;
+	FVector RightVector;
 };
 
 UCLASS()
@@ -69,6 +80,14 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
 	FVector MonsterScaleOffset = FVector(1.0f);
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization|LUT|SetUp", meta = (AllowPrivateAccess = "true"))
+	float LUTSampleDist = 10.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization|LUT|SetUp", meta = (AllowPrivateAccess = "true"))
+	bool bUseLUT = false;
+	
+	TArray<FSplineLUTSample> SplineLUT;
+	
 	// CDO에서 캐싱할 몬스터 스펙
 	float CachedDefaultMoveSpeed = 400.0f;
 	float CachedDefaultMaxHealth = 100.0f;
@@ -95,6 +114,8 @@ protected:
 	
 private:
 	void InitializeFromCDO();
+	void InitializeSplineLUT();
+	void GetLUTTransform(float InDistance, float InOffset, FTransform& OutTransform) const;
 	void SpawnMonsterISM();
 	void UpdateBatchSplineMovement(float DeltaTime);
 	void HandleInstanceDeath(int32 DataIndex);
@@ -102,7 +123,8 @@ private:
 public:
 	// 포탑 타겟팅
 	bool FindTargetMonster(const FVector& SearchOrigin, float SearchRadius, FVector& OutTargetLocation, int32& OutTargetIndex);
-
 	// 피격 처리
 	float ApplyDamageToInstance(int32 TargetIndex, float InDamageAmount, AActor* InAttacker);
+	FVector GetMonsterLocation(int32 MonsterIndex) const;
+	bool IsMonsterAlive(int32 MonsterIndex) const;
 };

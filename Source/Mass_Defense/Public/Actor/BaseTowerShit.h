@@ -6,6 +6,7 @@
 
 class UCapsuleComponent;
 class ABaseProjectile;
+class AMonsterSpawnManagerBatch;
 
 UCLASS()
 class MASS_DEFENSE_API ABaseTowerShit : public AActor
@@ -34,10 +35,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|SetUp")
 	bool bIsHoming = false;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "ISM|SetUp")
+	bool bUseISM = false;
+	
+	UPROPERTY(EditInstanceOnly, BlueprintReadWrite, Category = "ISM|SetUp")
+	TObjectPtr<AMonsterSpawnManagerBatch> TargetSpawnManager;
+	
 private:
 	FTimerHandle AttackTimerHandle;
 	TWeakObjectPtr<AActor> CurrentTarget;
-	
+	int32 CurrentTargetISMIndex = INDEX_NONE;
+	FVector CurrentTargetISMLocation = FVector::ZeroVector;
 public:	
 	ABaseTowerShit();
 
@@ -45,8 +53,11 @@ protected:
 	virtual void BeginPlay() override;
 	virtual void AttackTimer();
 	AActor* FindNearestTarget() const;
+	bool FindNearestISMTarget(FVector& OutLocation, int32& OutIndex) const;
 	void FireAtTarget(AActor* TargetActor);
+	void FireAtISMTarget(const FVector& TargetLocation, int32 TargetIndex);
 	bool IsTargetValid() const;
+	bool IsISMTargetValid() const;
 
 public:	
 	virtual void Tick(float DeltaTime) override;

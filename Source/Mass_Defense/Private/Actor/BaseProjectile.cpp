@@ -3,6 +3,7 @@
 #include "Components/SphereComponent.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "Interface/DamageableInterface.h"
+#include "Actor/MonsterSpawnManagerBatch.h"
 
 ABaseProjectile::ABaseProjectile()
 {
@@ -25,7 +26,7 @@ ABaseProjectile::ABaseProjectile()
 	ProjectileMovement->ProjectileGravityScale = 0.0f;
 	ProjectileMovement->bRotationFollowsVelocity = true;
 	
-	InitialLifeSpan = 3.0f;
+	InitialLifeSpan = 5.0f;
 }
 
 void ABaseProjectile::BeginPlay()
@@ -40,7 +41,7 @@ void ABaseProjectile::BeginPlay()
 void ABaseProjectile::OnOverlap(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
 	int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
-	if (bHasHit || !OtherActor || OtherActor == this || OtherActor == GetOwner())
+	if (bHasHit || bUseISM || !OtherActor || OtherActor == this || OtherActor == GetOwner())
 	{
 		return;
 	}
@@ -56,7 +57,8 @@ void ABaseProjectile::OnOverlap(UPrimitiveComponent* OverlappedComp, AActor* Oth
 				bIsTargetAlive = !Damageable->IsDead();
 			}
 		}
-
+	
+		
 		if (bIsTargetAlive)
 		{
 			// 타겟이 살아있다면 다른 대상은 무시
@@ -92,6 +94,10 @@ void ABaseProjectile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	if (bUseISM)
+	{
+		TickISMTravel(DeltaTime);
+	}
 }
 
 void ABaseProjectile::SetHomingTarget(AActor* InTargetActor)
@@ -100,10 +106,67 @@ void ABaseProjectile::SetHomingTarget(AActor* InTargetActor)
 	{
 		return;
 	}
+	
+	bUseISM = false;
+	TargetSpawnManager = nullptr;
+	TargetISMIndex = INDEX_NONE;
 	CurrentTarget = InTargetActor;
 	
 	ProjectileMovement->bIsHomingProjectile = true;
 	ProjectileMovement->HomingAccelerationMagnitude = 20000.0f;
 	ProjectileMovement->HomingTargetComponent = InTargetActor->GetRootComponent();
 }
+
+void ABaseProjectile::SetISMTarget(AMonsterSpawnManagerBatch* InManager, int32 InTargetIndex)
+{
+	TargetSpawnManager = InManager;
+	TargetISMIndex = InTargetIndex;
+	bUseISM = true;
+	CurrentTarget = nullptr;
+	// ISM 인스턴스는 씬 컴포넌트가 없으므로 내장 물리 유도 기능은 비활성화
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->bIsHomingProjectile = false;
+		ProjectileMovement->HomingTargetComponent = nullptr;
+	}
+}
+
+void ABaseProjectile::TickISMTravel(float DeltaTime)
+{
+	if (bHasHit || !TargetSpawnManager || TargetISMIndex == INDEX_NONE)
+	{
+		return;
+	}
+	// 매니저를 통해 해당 인스턴스 위치 조회
+	const FVector TargetLocation = TargetSpawnManager->GetMonsterLocation(TargetISMIndex);
+	if (TargetLocation.IsZero())
+	{
+		// 유도를 중단하고 현재 속도 벡터 그대로 직진하게 둠
+		TargetISMIndex = INDEX_NONE;
+		return;
+	}
+
+	const FVector CurrentLocation = GetActorLocation();
+	const FVector ToTarget = TargetLocation - CurrentLocation;
+	const float DistanceSq = ToTarget.SizeSquared();
+	// 도달 판정 (거리 제곱 비교)
+	if (DistanceSq <= FMath::Square(HitAcceptanceRadius))
+	{
+		bHasHit = true;
+		// 매니저의 인스턴스에 데미지 적용
+		TargetSpawnManager->ApplyDamageToInstance(TargetISMIndex, Damage, GetOwner());
+		Destroy();
+		return;
+	}
+
+	// 실시간 궤적 수정
+	const FVector Direction = ToTarget.GetSafeNormal();
+	const float CurrentSpeed = ProjectileMovement ? ProjectileMovement->InitialSpeed : 1000.0f;
+	if (ProjectileMovement)
+	{
+		ProjectileMovement->Velocity = Direction * CurrentSpeed;
+	}
+	SetActorRotation(Direction.Rotation());
+}
+
 
