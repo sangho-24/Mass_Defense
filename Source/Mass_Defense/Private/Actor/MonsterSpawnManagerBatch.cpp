@@ -39,6 +39,7 @@ void AMonsterSpawnManagerBatch::BeginPlay()
 	CachedSplineComponent = SplinePathActor->GetSplineComponent();
 	CachedSplineLength = CachedSplineComponent->GetSplineLength();
 	CachedSpawnTransform = CachedSplineComponent->GetTransformAtDistanceAlongSpline(0.0f, ESplineCoordinateSpace::World);
+	CachedSpawnTransform.AddToTranslation(FVector(0.0f, 0.0f, MonsterZLocationOffset));
 	CachedSpawnTransform.SetScale3D(MonsterScaleOffset);
 	CachedSpawnTransform.ConcatenateRotation(FRotator(0.0f, MonsterYawRotationOffset, 0.0f).Quaternion());
 
@@ -147,6 +148,7 @@ void AMonsterSpawnManagerBatch::GetLUTTransform(float InDistance, float InOffset
 	// 횡방향 오프셋 벡터 보간 적용
 	const FVector BlendedRight = FMath::Lerp(SampleA.RightVector, SampleB.RightVector, Alpha).GetSafeNormal();
 	OutTransform.AddToTranslation(BlendedRight * InOffset);
+	OutTransform.AddToTranslation(FVector(0.0f, 0.0f, MonsterZLocationOffset));
 }
 
 void AMonsterSpawnManagerBatch::SpawnMonsterISM()
@@ -251,10 +253,11 @@ void AMonsterSpawnManagerBatch::UpdateBatchSplineMovement(float DeltaTime)
 		}
 		else
 		{
-		SplineTransform = CachedSplineComponent->GetTransformAtDistanceAlongSpline(Data.CurrentDistanceAlongSpline, ESplineCoordinateSpace::World);
-		const FVector Right = SplineTransform.GetRotation().GetRightVector();
-		SplineTransform.AddToTranslation(Right * Data.PathOffset);
-		SplineTransform.ConcatenateRotation(FRotator(0.0f, MonsterYawRotationOffset, 0.0f).Quaternion());
+			SplineTransform = CachedSplineComponent->GetTransformAtDistanceAlongSpline(Data.CurrentDistanceAlongSpline, ESplineCoordinateSpace::World);
+			const FVector Right = SplineTransform.GetRotation().GetRightVector();
+			SplineTransform.AddToTranslation(Right * Data.PathOffset);
+			SplineTransform.AddToTranslation(FVector(0.0f, 0.0f, MonsterZLocationOffset));
+			SplineTransform.ConcatenateRotation(FRotator(0.0f, MonsterYawRotationOffset, 0.0f).Quaternion());
 		}
 		// 스케일은 LUT에서 적용할 필요 없음. (비용 같음)
 		SplineTransform.SetScale3D(MonsterScaleOffset);
@@ -358,7 +361,7 @@ FVector AMonsterSpawnManagerBatch::GetMonsterLocation(int32 MonsterIndex) const
 	// 세 번째 인자 true: 월드 스페이스 좌표로 트랜스폼 획득
 	if (ISMComponent->GetInstanceTransform(ActiveMonsterData[MonsterIndex].InstanceIndex, OutTransform, true))
 	{
-		return OutTransform.GetLocation();
+		return OutTransform.GetLocation() + FVector(0.0f, 0.0f, -MonsterZLocationOffset);
 	}
 	return FVector::ZeroVector;
 }

@@ -80,6 +80,9 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
 	FVector MonsterScaleOffset = FVector(1.0f);
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawn|SetUp", meta = (AllowPrivateAccess = "true"))
+	float MonsterZLocationOffset = 0.0f;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization|LUT|SetUp", meta = (AllowPrivateAccess = "true"))
 	float LUTSampleDist = 10.0f;
 	
