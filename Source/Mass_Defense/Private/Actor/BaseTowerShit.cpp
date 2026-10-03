@@ -32,10 +32,9 @@ void ABaseTowerShit::BeginPlay()
 			UGameplayStatics::GetActorOfClass(GetWorld(), AMonsterSpawnManagerBatch::StaticClass()));
 	}
 	
-	GetWorld()->GetTimerManager().SetTimer(
-	AttackTimerHandle,this, 
-	&ABaseTowerShit::AttackTimer,
-	AttackInterval,true);
+	const float RandomFirstDelay = FMath::FRandRange(0.0f, AttackInterval);
+	GetWorld()->GetTimerManager().SetTimer(AttackTimerHandle,this, 
+		&ABaseTowerShit::AttackTimer,AttackInterval,true, RandomFirstDelay);
 }
 
 void ABaseTowerShit::AttackTimer()

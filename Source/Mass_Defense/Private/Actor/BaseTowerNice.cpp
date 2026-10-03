@@ -29,8 +29,9 @@ void ABaseTowerNice::BeginPlay()
 		TargetSpawnManager = Cast<AMonsterSpawnManagerBatch>(
 			UGameplayStatics::GetActorOfClass(GetWorld(), AMonsterSpawnManagerBatch::StaticClass()));
 	}
+	const float RandomFirstDelay = FMath::FRandRange(0.0f, AttackInterval);
 	GetWorld()->GetTimerManager().SetTimer(AttackTimerHandle,this, 
-		&ABaseTowerNice::AttackTimer,AttackInterval,true);
+		&ABaseTowerNice::AttackTimer,AttackInterval,true, RandomFirstDelay);
 }
 
 void ABaseTowerNice::Tick(float DeltaTime)
@@ -126,6 +127,7 @@ void ABaseTowerNice::FireVirtualProjectile(const FVector& TargetLocation, int32 
 	// 투사체 구조체 생성 및 등록
 	FVirtualProjectileData NewData;
 	NewData.CurrentLocation = FireLocation;
+	NewData.LastKnownTargetLocation = TargetLocation;
 	NewData.TargetIndex = TargetIndex;
 	NewData.Speed = ProjectileSpeed;
 	NewData.Damage = AttackDamage;
@@ -145,25 +147,31 @@ void ABaseTowerNice::TickVirtualProjectiles(float DeltaTime)
 	{
 		FVirtualProjectileData& Data = ActiveVirtualProjectiles[Index];
 		const FVector TargetLocation = TargetSpawnManager->GetMonsterLocation(Data.TargetIndex);
-		// 타겟이 이미 죽었거나 소멸된 경우, 스왑제거
-		if (TargetLocation.IsZero())
+		// 타겟이 이미 죽었거나 소멸된 경우
+		if (!Data.bLostTarget)
 		{
-			if (Data.NiagaraComponent.IsValid())
+			if (TargetLocation.IsZero())
 			{
-				Data.NiagaraComponent->Deactivate();
+				Data.bLostTarget = true;
 			}
-			ActiveVirtualProjectiles.RemoveAtSwap(Index);
-			continue;
+			else
+			{
+				Data.LastKnownTargetLocation = TargetLocation;
+			}
 		}
-
-		const FVector ToTarget = TargetLocation - Data.CurrentLocation;
+		const FVector ToTarget = Data.LastKnownTargetLocation - Data.CurrentLocation;
 		const float DistanceSq = ToTarget.SizeSquared();
 		const float MoveStep = Data.Speed * DeltaTime;
+
 		// 오버랩 검사 || 터널링(넘 빨라서 뚫고 나가는거) 검사
 		if (DistanceSq <= HitAcceptanceRadiusSq || DistanceSq <= FMath::Square(MoveStep))
 		{
+			if (!Data.bLostTarget)
+			{
 			TargetSpawnManager->ApplyDamageToInstance(Data.TargetIndex, Data.Damage, this);
-			PlayHitEffect(TargetLocation);
+			}
+			// 히트시에만 이펙트 출력할거면 위로
+			PlayHitEffect(Data.LastKnownTargetLocation);
 			if (Data.NiagaraComponent.IsValid())
 			{
 				Data.NiagaraComponent->DestroyComponent();

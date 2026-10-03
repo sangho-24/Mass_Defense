@@ -16,10 +16,12 @@ struct FVirtualProjectileData
 	GENERATED_BODY()
 
 	FVector CurrentLocation = FVector::ZeroVector;
+	FVector LastKnownTargetLocation = FVector::ZeroVector;
 	int32 TargetIndex = INDEX_NONE;
 	float Speed = 1500.0f;
 	float Damage = 25.0f;
-
+	
+	bool bLostTarget = false;
 	TWeakObjectPtr<UNiagaraComponent> NiagaraComponent = nullptr;
 };
 
