@@ -64,6 +64,7 @@ void AMonsterSpawnManagerBatch::Tick(float DeltaTime)
 	if (CachedSplineComponent.IsValid() && ActiveMonsterData.Num() > 0)
 	{
 		UpdateBatchSplineMovement(DeltaTime);
+		RebuildSpatialGrid();
 	}
 }
 
@@ -286,6 +287,38 @@ void AMonsterSpawnManagerBatch::HandleInstanceDeath(int32 DataIndex)
 	ISMComponent->SetCustomDataValue(Data.InstanceIndex, 3, CachedDeathAnimEndFrames, true);
 }
 
+void AMonsterSpawnManagerBatch::RebuildSpatialGrid()
+{
+	// 맵을 완전히 제거하지 않고 요소만 비워 힙 재할당 오버헤드 방지
+	for (TPair<int64, FSpatialGridCell>& Pair : SpatialGrid)
+	{
+		Pair.Value.MonsterIndex.Reset();
+	}
+
+	const int32 MonsterCount = ActiveMonsterData.Num();
+	for (int32 DataIndex = 0; DataIndex < MonsterCount; ++DataIndex)
+	{
+		const FMonsterInstanceData& Data = ActiveMonsterData[DataIndex];
+		if (Data.bIsDead)
+		{
+			continue;
+		}
+
+		const FVector MonsterLocation = GetMonsterLocation(DataIndex);
+		if (MonsterLocation.IsZero())
+		{
+			continue;
+		}
+
+		int32 CellX = 0;
+		int32 CellY = 0;
+		GetCellCoords(MonsterLocation, CellX, CellY);
+
+		const int64 CellKey = MakeCellKey(CellX, CellY);
+		SpatialGrid.FindOrAdd(CellKey).MonsterIndex.Add(DataIndex);
+	}
+}
+
 bool AMonsterSpawnManagerBatch::FindTargetMonster(const FVector& SearchOrigin, float SearchRadius, FVector& OutTargetLocation, int32& OutTargetIndex)
 {
 	float ClosestDistSq = FMath::Square(SearchRadius);
@@ -319,6 +352,75 @@ bool AMonsterSpawnManagerBatch::FindTargetMonster(const FVector& SearchOrigin, f
 		return true;
 	}
 
+	return false;
+}
+
+bool AMonsterSpawnManagerBatch::FindTargetMonsterSpatialGrid(const FVector& SearchOrigin, float SearchRadius, FVector& OutTargetLocation, int32& OutTargetIndex)
+{
+	OutTargetIndex = INDEX_NONE;
+	OutTargetLocation = FVector::ZeroVector;
+
+	if (ActiveMonsterData.Num() == 0 || SpatialGrid.Num() == 0)
+	{
+		return false;
+	}
+
+	const float SearchRadiusSq = FMath::Square(SearchRadius);
+	float ClosestDistanceSq = SearchRadiusSq;
+	int32 BestCandidateIndex = INDEX_NONE;
+	FVector BestCandidateLocation = FVector::ZeroVector;
+
+	// 1. 포탑 사거리에 걸치는 셀의 Min/Max 경계 산출
+	int32 MinCellX = 0, MinCellY = 0;
+	int32 MaxCellX = 0, MaxCellY = 0;
+	GetCellCoords(SearchOrigin - FVector(SearchRadius, SearchRadius, 0.0f), MinCellX, MinCellY);
+	GetCellCoords(SearchOrigin + FVector(SearchRadius, SearchRadius, 0.0f), MaxCellX, MaxCellY);
+
+	// 2. 사거리 박스 안에 걸치는 격자 셀들만 순회
+	for (int32 X = MinCellX; X <= MaxCellX; ++X)
+	{
+		for (int32 Y = MinCellY; Y <= MaxCellY; ++Y)
+		{
+			const int64 TargetCellKey = MakeCellKey(X, Y);
+			const FSpatialGridCell* CellPtr = SpatialGrid.Find(TargetCellKey);
+			if (!CellPtr)
+			{
+				continue;
+			}
+
+			// 해당 셀에 등록된 몬스터들만 검사
+			for (const int32 CandidateIndex : CellPtr->MonsterIndex)
+			{
+				if (!ActiveMonsterData.IsValidIndex(CandidateIndex))
+				{
+					continue;
+				}
+
+				const FMonsterInstanceData& CandidateData = ActiveMonsterData[CandidateIndex];
+				if (CandidateData.bIsDead)
+				{
+					continue;
+				}
+
+				const FVector CandidateLocation = GetMonsterLocation(CandidateIndex);
+				const float DistSq = FVector::DistSquared(SearchOrigin, CandidateLocation);
+
+				if (DistSq <= ClosestDistanceSq)
+				{
+					ClosestDistanceSq = DistSq;
+					BestCandidateIndex = CandidateIndex;
+					BestCandidateLocation = CandidateLocation;
+				}
+			}
+		}
+	}
+
+	if (BestCandidateIndex != INDEX_NONE)
+	{
+		OutTargetIndex = BestCandidateIndex;
+		OutTargetLocation = BestCandidateLocation;
+		return true;
+	}
 	return false;
 }
 

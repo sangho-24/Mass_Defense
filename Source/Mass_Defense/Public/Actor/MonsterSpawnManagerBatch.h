@@ -50,6 +50,15 @@ struct FSplineLUTSample
 	FVector RightVector;
 };
 
+// 그리드 셀 내 몬스터 인덱스 구조체
+USTRUCT()
+struct FSpatialGridCell
+{
+	GENERATED_BODY()
+
+	TArray<int32> MonsterIndex;
+};
+
 UCLASS()
 class MASS_DEFENSE_API AMonsterSpawnManagerBatch : public AActor
 {
@@ -89,6 +98,12 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization|LUT|SetUp", meta = (AllowPrivateAccess = "true"))
 	bool bUseLUT = false;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization|SpatialGrid|SetUp", meta = (AllowPrivateAccess = "true"))
+	float GridCellSize = 1000.0f;
+	
+	// 64비트 정수 키(CellX, CellY 결합) 기반 해시 맵
+	TMap<int64, FSpatialGridCell> SpatialGrid;
+	
 	TArray<FSplineLUTSample> SplineLUT;
 	
 	// CDO에서 캐싱할 몬스터 스펙
@@ -123,9 +138,23 @@ private:
 	void UpdateBatchSplineMovement(float DeltaTime);
 	void HandleInstanceDeath(int32 DataIndex);
 	
+	void RebuildSpatialGrid();
+	
+	FORCEINLINE int64 MakeCellKey(int32 CellX, int32 CellY)
+	{
+		return (static_cast<int64>(CellX) << 32) | (static_cast<int64>(CellY) & 0xFFFFFFFF);
+	}
+	
+	FORCEINLINE void GetCellCoords(const FVector& Location, int32& OutCellX, int32& OutCellY) const
+	{ 
+		OutCellX = FMath::FloorToInt(Location.X / GridCellSize);
+		OutCellY = FMath::FloorToInt(Location.Y / GridCellSize);
+	}
+	
 public:
 	// 포탑 타겟팅
 	bool FindTargetMonster(const FVector& SearchOrigin, float SearchRadius, FVector& OutTargetLocation, int32& OutTargetIndex);
+	bool FindTargetMonsterSpatialGrid(const FVector& SearchOrigin, float SearchRadius, FVector& OutTargetLocation, int32& OutTargetIndex);
 	// 피격 처리
 	float ApplyDamageToInstance(int32 TargetIndex, float InDamageAmount, AActor* InAttacker);
 	FVector GetMonsterLocation(int32 MonsterIndex) const;

@@ -69,7 +69,11 @@ void ABaseTowerNice::UpdateTargetSearch()
 	// 여기서 공간분할 제어
 	if (bUseSpatialPartitioning)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("공간분할 기반 타겟 탐색은 아직 없지롱"));
+		if (TargetSpawnManager->FindTargetMonsterSpatialGrid(MyLocation, AttackRange, FoundLocation, FoundIndex))
+		{
+			CurrentTargetIndex = FoundIndex;
+			CurrentTargetLocation = FoundLocation;
+		}
 	}
 	else
 	{
