@@ -73,6 +73,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization|SetUp")
 	bool bUseSpatialPartitioning = false;
 	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Optimization|SetUp")
+	bool bUseObjectPooling = false;
+	
 	
 private:
 	FTimerHandle AttackTimerHandle;

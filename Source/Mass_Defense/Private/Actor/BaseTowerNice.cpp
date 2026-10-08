@@ -4,6 +4,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
+#include "ProjectilePoolWorldSubsystem.h"
 
 
 
@@ -122,11 +123,22 @@ void ABaseTowerNice::FireVirtualProjectile(const FVector& TargetLocation, int32 
 	UNiagaraComponent* SpawnedNiagara = nullptr;
 	if (ProjectileNiagaraSystem)
 	{
-		SpawnedNiagara = UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-		GetWorld(),
-		ProjectileNiagaraSystem,
-		FireLocation,
-		(TargetLocation - FireLocation).Rotation());
+		// 오브젝트 풀링 방식 스폰
+		if (bUseObjectPooling)
+		{
+			if (UWorld* World = GetWorld())
+			{
+				if (UProjectilePoolWorldSubsystem* PoolSubsystem = World->GetSubsystem<UProjectilePoolWorldSubsystem>())
+				{
+					SpawnedNiagara = PoolSubsystem->AcquireProjectile(ProjectileNiagaraSystem, FireLocation, FireRotation);
+				}
+			}
+		}
+		else
+		{
+		SpawnedNiagara = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(),
+		ProjectileNiagaraSystem, FireLocation, (TargetLocation - FireLocation).Rotation());
+		}
 	}
 	// 투사체 구조체 생성 및 등록
 	FVirtualProjectileData NewData;
@@ -178,7 +190,23 @@ void ABaseTowerNice::TickVirtualProjectiles(float DeltaTime)
 			PlayHitEffect(Data.LastKnownTargetLocation);
 			if (Data.NiagaraComponent.IsValid())
 			{
-				Data.NiagaraComponent->DestroyComponent();
+				UNiagaraComponent* ProjectileComponent = Data.NiagaraComponent.Get();
+				// 오브젝트 풀에 반납
+				if (bUseObjectPooling)
+				{
+					if (UWorld* World = GetWorld())
+					{
+						if (UProjectilePoolWorldSubsystem* PoolSubsystem = World->GetSubsystem<UProjectilePoolWorldSubsystem>())
+						{
+							PoolSubsystem->ReturnProjectile(ProjectileComponent);
+						}
+					}
+				}
+				// 제거
+				else
+				{
+					ProjectileComponent->DestroyComponent();
+				}
 			}
 			ActiveVirtualProjectiles.RemoveAtSwap(Index);
 			continue;
@@ -191,8 +219,8 @@ void ABaseTowerNice::TickVirtualProjectiles(float DeltaTime)
 		// 나이아가라 이펙트 위치 동기화 (투사체 실제 이동)
 		if (Data.NiagaraComponent.IsValid())
 		{
-			Data.NiagaraComponent->SetWorldLocation(Data.CurrentLocation);
-			Data.NiagaraComponent->SetWorldRotation(MoveDirection.Rotation());
+			Data.NiagaraComponent->SetWorldLocationAndRotation(Data.CurrentLocation, MoveDirection.Rotation());
+			// Data.NiagaraComponent->SetWorldRotation(MoveDirection.Rotation());
 		}
 	}
 }
@@ -201,8 +229,17 @@ void ABaseTowerNice::PlayMuzzleFlashEffect(const FVector& SpawnLocation, const F
 {
 	if (MuzzleFlashNiagaraSystem)
 	{
+		if (bUseObjectPooling)
+		{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+		GetWorld(),MuzzleFlashNiagaraSystem, SpawnLocation, SpawnRotation, FVector::OneVector, 
+		false, true, ENCPoolMethod::AutoRelease, false);
+		}
+		else
+		{
 		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
 		GetWorld(),MuzzleFlashNiagaraSystem, SpawnLocation, SpawnRotation);
+		}
 	}
 }
 
@@ -210,8 +247,17 @@ void ABaseTowerNice::PlayHitEffect(const FVector& HitLocation)
 {
 	if (HitNiagaraSystem)
 	{
-		UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-		GetWorld(),HitNiagaraSystem, HitLocation,FRotator::ZeroRotator);
+		if (bUseObjectPooling)
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(),HitNiagaraSystem, HitLocation, FRotator::ZeroRotator, FVector::OneVector, 
+			false, true, ENCPoolMethod::AutoRelease, false);
+		}
+		else
+		{
+			UNiagaraFunctionLibrary::SpawnSystemAtLocation(
+			GetWorld(),HitNiagaraSystem, HitLocation, FRotator::ZeroRotator);
+		}
 	}
 }
 
