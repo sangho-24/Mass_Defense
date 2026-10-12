@@ -472,3 +472,26 @@ bool AMonsterSpawnManagerBatch::IsMonsterAlive(int32 MonsterIndex) const
 {
 	return ActiveMonsterData.IsValidIndex(MonsterIndex) && !ActiveMonsterData[MonsterIndex].bIsDead;
 }
+
+bool AMonsterSpawnManagerBatch::TryTriggerHitEffect(int32 TargetIndex, float Cooldown)
+{
+	if (!ActiveMonsterData.IsValidIndex(TargetIndex))
+	{
+		return false;
+	}
+
+	FMonsterInstanceData& Data = ActiveMonsterData[TargetIndex];
+	if (Data.bIsDead)
+	{
+		return false;
+	}
+
+	const float CurrentWorldTime = GetWorld()->GetTimeSeconds();
+	if (CurrentWorldTime - Data.LastHitEffectTime >= Cooldown)
+	{
+		Data.LastHitEffectTime = CurrentWorldTime;
+		return true;
+	}
+
+	return false;
+}

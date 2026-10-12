@@ -38,6 +38,9 @@ struct FMonsterInstanceData
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	float DeathTime = 0.0f;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
+	float LastHitEffectTime = -1.0f;
 };
 
 // LUT 구조체
@@ -159,4 +162,6 @@ public:
 	float ApplyDamageToInstance(int32 TargetIndex, float InDamageAmount, AActor* InAttacker);
 	FVector GetMonsterLocation(int32 MonsterIndex) const;
 	bool IsMonsterAlive(int32 MonsterIndex) const;
+	
+	bool TryTriggerHitEffect(int32 TargetIndex, float Cooldown = 0.05f);
 };

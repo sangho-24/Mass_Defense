@@ -118,7 +118,13 @@ void ABaseTowerNice::FireVirtualProjectile(const FVector& TargetLocation, int32 
 	// const FVector MuzzleLocation = HeadMeshComponent ? HeadMeshComponent->GetComponentLocation() + (HeadMeshComponent->GetForwardVector() * 80.0f) : GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
 	const FVector FireLocation = GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
 	const FRotator FireRotation = (TargetLocation - FireLocation).Rotation();
-	PlayMuzzleFlashEffect(FireLocation, FireRotation);
+	
+	float CurrentWorldTime = GetWorld()->GetTimeSeconds();
+	if (CurrentWorldTime - LastMuzzleEffectTime >= 0.2f)
+	{
+		LastMuzzleEffectTime = CurrentWorldTime;
+		PlayMuzzleFlashEffect(FireLocation, FireRotation);
+	}
 	// 나이아가라 스폰
 	UNiagaraComponent* SpawnedNiagara = nullptr;
 	if (ProjectileNiagaraSystem)
@@ -184,10 +190,13 @@ void ABaseTowerNice::TickVirtualProjectiles(float DeltaTime)
 		{
 			if (!Data.bLostTarget)
 			{
-			TargetSpawnManager->ApplyDamageToInstance(Data.TargetIndex, Data.Damage, this);
+				TargetSpawnManager->ApplyDamageToInstance(Data.TargetIndex, Data.Damage, this);
+				if (TargetSpawnManager->TryTriggerHitEffect(Data.TargetIndex, 0.05f))
+				{
+				PlayHitEffect(Data.LastKnownTargetLocation);
+				}
 			}
 			// 히트시에만 이펙트 출력할거면 위로
-			PlayHitEffect(Data.LastKnownTargetLocation);
 			if (Data.NiagaraComponent.IsValid())
 			{
 				UNiagaraComponent* ProjectileComponent = Data.NiagaraComponent.Get();

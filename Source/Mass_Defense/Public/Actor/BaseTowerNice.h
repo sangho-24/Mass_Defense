@@ -81,6 +81,7 @@ private:
 	FTimerHandle AttackTimerHandle;
 	int32 CurrentTargetIndex = INDEX_NONE;
 	FVector CurrentTargetLocation = FVector::ZeroVector;
+	float LastMuzzleEffectTime = -1.0f;
 	// bool bHasValidTarget = false;  필없지않나
 	
 	TArray<FVirtualProjectileData> ActiveVirtualProjectiles;
