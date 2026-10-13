@@ -16,9 +16,13 @@ ABaseTowerNice::ABaseTowerNice()
 	CollisionComponent->SetCollisionProfileName(TEXT("BlockAllDynamic"));
 	RootComponent = CollisionComponent;
 	
-	StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMeshComponent"));
-	StaticMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	StaticMeshComponent->SetupAttachment(RootComponent);
+	BaseMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BaseMeshComponent"));
+	BaseMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	BaseMeshComponent->SetupAttachment(RootComponent);
+	
+	HeadMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("HeadMeshComponent"));
+	HeadMeshComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeadMeshComponent->SetupAttachment(BaseMeshComponent);
 }
 
 void ABaseTowerNice::BeginPlay()
@@ -39,6 +43,7 @@ void ABaseTowerNice::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 	
+	RotateHeadTowardsTarget(DeltaTime);
 	TickVirtualProjectiles(DeltaTime);
 }
 
@@ -115,15 +120,30 @@ bool ABaseTowerNice::IsTargetValid()
 
 void ABaseTowerNice::FireVirtualProjectile(const FVector& TargetLocation, int32 TargetIndex)
 {
-	// const FVector MuzzleLocation = HeadMeshComponent ? HeadMeshComponent->GetComponentLocation() + (HeadMeshComponent->GetForwardVector() * 80.0f) : GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
-	const FVector FireLocation = GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
-	const FRotator FireRotation = (TargetLocation - FireLocation).Rotation();
+	FVector MuzzleLocation;
+
+	if (HeadMeshComponent)
+	{
+		MuzzleLocation = HeadMeshComponent->GetComponentLocation()
+			+ HeadMeshComponent->GetForwardVector().RotateAngleAxis(90.0f, FVector::UpVector) * BarrelLength
+			+ FVector(0.0f, 0.0f, 120.0f);
+	}
+	else
+	{
+		MuzzleLocation = GetActorLocation()	+ FVector(0.0f, 0.0f, 120.0f);
+	}
+	
+	// const FVector MuzzleLocation = HeadMeshComponent ? 
+	// 	HeadMeshComponent->GetComponentLocation() + (HeadMeshComponent->GetForwardVector().RotateAngleAxis(90.0f, FVector::UpVector) * BarrelLength) : 
+	// 	GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+	// const FVector FireLocation = GetActorLocation() + FVector(0.0f, 0.0f, 100.0f);
+	// const FRotator FireRotation = (TargetLocation - FireLocation).Rotation();
 	
 	float CurrentWorldTime = GetWorld()->GetTimeSeconds();
 	if (CurrentWorldTime - LastMuzzleEffectTime >= 0.2f)
 	{
 		LastMuzzleEffectTime = CurrentWorldTime;
-		PlayMuzzleFlashEffect(FireLocation, FireRotation);
+		PlayMuzzleFlashEffect(MuzzleLocation, (TargetLocation - MuzzleLocation).Rotation());
 	}
 	// 나이아가라 스폰
 	UNiagaraComponent* SpawnedNiagara = nullptr;
@@ -136,19 +156,19 @@ void ABaseTowerNice::FireVirtualProjectile(const FVector& TargetLocation, int32 
 			{
 				if (UProjectilePoolWorldSubsystem* PoolSubsystem = World->GetSubsystem<UProjectilePoolWorldSubsystem>())
 				{
-					SpawnedNiagara = PoolSubsystem->AcquireProjectile(ProjectileNiagaraSystem, FireLocation, FireRotation);
+					SpawnedNiagara = PoolSubsystem->AcquireProjectile(ProjectileNiagaraSystem, MuzzleLocation, (TargetLocation - MuzzleLocation).Rotation());
 				}
 			}
 		}
 		else
 		{
 		SpawnedNiagara = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(),
-		ProjectileNiagaraSystem, FireLocation, (TargetLocation - FireLocation).Rotation());
+		ProjectileNiagaraSystem, MuzzleLocation, (TargetLocation - MuzzleLocation).Rotation());
 		}
 	}
 	// 투사체 구조체 생성 및 등록
 	FVirtualProjectileData NewData;
-	NewData.CurrentLocation = FireLocation;
+	NewData.CurrentLocation = MuzzleLocation;
 	NewData.LastKnownTargetLocation = TargetLocation;
 	NewData.TargetIndex = TargetIndex;
 	NewData.Speed = ProjectileSpeed;
@@ -270,5 +290,27 @@ void ABaseTowerNice::PlayHitEffect(const FVector& HitLocation)
 	}
 }
 
+void ABaseTowerNice::RotateHeadTowardsTarget(float DeltaTime)
+{
+	if (!HeadMeshComponent)
+	{
+		return;
+	}
+
+	const FVector MuzzleLocation = HeadMeshComponent->GetComponentLocation();
+	const FVector Direction = (CurrentTargetLocation - MuzzleLocation).GetSafeNormal2D();
+
+	if (Direction.IsNearlyZero())
+	{
+		return;
+	}
+
+	FRotator TargetRotation = Direction.Rotation();
+	TargetRotation.Yaw -= 90.f;
+	const FRotator CurrentRotation = HeadMeshComponent->GetComponentRotation();
+	const FRotator NewRotation = FMath::RInterpTo(CurrentRotation, TargetRotation, DeltaTime, HeadRotationInterpSpeed);
+
+	HeadMeshComponent->SetWorldRotation(FRotator(0.0f, NewRotation.Yaw, 0.0f));
+}
 
 

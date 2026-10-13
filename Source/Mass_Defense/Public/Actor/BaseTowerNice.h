@@ -35,8 +35,17 @@ protected:
 	TObjectPtr<UCapsuleComponent> CollisionComponent;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	TObjectPtr<UStaticMeshComponent> StaticMeshComponent;
+	TObjectPtr<UStaticMeshComponent> BaseMeshComponent;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+	TObjectPtr<UStaticMeshComponent> HeadMeshComponent;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|SetUp")
+	float HeadRotationInterpSpeed = 15.0f;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|SetUp")
+	float BarrelLength = 220.0f;
+	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combat|SetUp")
 	float AttackRange = 800.0f;
 
@@ -102,5 +111,6 @@ private:
 	
 	void PlayMuzzleFlashEffect(const FVector& SpawnLocation, const FRotator& SpawnRotation);
 	void PlayHitEffect(const FVector& HitLocation);
+	void RotateHeadTowardsTarget(float DeltaTime);
 
 };
