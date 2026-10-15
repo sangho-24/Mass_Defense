@@ -137,8 +137,14 @@ void AMonsterSpawnManagerBatch::GetLUTTransform(float InDistance, float InOffset
 	const int32 IndexA = FMath::FloorToInt(NormalizedDistance);
 	// 딱 맞아떨어질 때, Index+1하면 배열범위초과. 그걸 방지하기 위한 Min.
 	const int32 IndexB = FMath::Min(IndexA + 1, SplineLUT.Num() - 1);
-	const float Alpha = NormalizedDistance - static_cast<float>(IndexA);
+	
+	// const float Alpha = NormalizedDistance - static_cast<float>(IndexA);
 
+	// 끝부분 맞아떨어지지 않을 때 보정
+	const float DistanceA = FMath::Min(static_cast<float>(IndexA) * LUTSampleDist, CachedSplineLength);
+	const float DistanceB = FMath::Min(static_cast<float>(IndexB) * LUTSampleDist, CachedSplineLength);
+	const float Alpha = DistanceB > DistanceA ? (ClampedDistance - DistanceA) / (DistanceB - DistanceA) : 0.0f;
+	
 	const FSplineLUTSample& SampleA = SplineLUT[IndexA];
 	const FSplineLUTSample& SampleB = SplineLUT[IndexB];
 
